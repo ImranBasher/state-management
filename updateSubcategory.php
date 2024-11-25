@@ -1,54 +1,103 @@
 <?php
-
 $servername = "localhost";
 $username = "root";
 $password = "";
 $dbname = "boq";
 
+
+
 try {
     $conn = mysqli_connect("localhost", "root", "", "boq");
 
+    include "grandTotal1.php";
 
-    $type = $_POST['type'];
-    $subcategory_id = (int)$_POST['subcategory_id'];
-    $field_type = $_POST['field_type'];
-    $value = $_POST['value'];
-    $cost = isset($_POST['cost']) ? (float)$_POST['cost'] : null; // Cast to float if provided
+    if($_POST["BoqSubCategoryID"]){
+        $projectID = $_POST["projectId"];
+        $BoqCategoryID = $_POST["BoqCategoryID"];
+        $BoqSubCategoryID   = $_POST["BoqSubCategoryID"];
+        $dynamicColumnName  = $_POST["SubCategoryColumnName"];
+        $dynamicColumnValue = $_POST["SubCategoryInputValue"];
 
-    // Define allowed field types for security
-    $allowed_fields = ['SubcategoryName', 'SubcategoryUnit', 'SubcategoryQty', 'SubcategoryRate'];
-    if (!in_array($field_type, $allowed_fields)) {
-        die(json_encode(['status' => 'error', 'message' => 'Invalid field type']));
-    }
+        $updateQuery = "UPDATE tblboqsubcategory SET $dynamicColumnName='$dynamicColumnValue' WHERE BoqSubcategoryID='$BoqSubCategoryID'";
 
-    if ($type === 'update_subcategory') {
+       // $GrandTotalCost = 0;
 
-        if ($cost !== null) {
-            // If cost is provided, update both the specified field and cost
-            $sql = "UPDATE tblboqsubcategory SET $field_type = '$value', SubcategoryCost = $cost WHERE BoqSubcategoryID = $subcategory_id";
-        } else {
+        if (mysqli_query($conn, $updateQuery)) {
+            $insertedCategoryId = mysqli_insert_id($conn);
+            $data['message2'] = "SubCategory update successfully.";
 
-            $sql = "UPDATE tblboqsubcategory SET $field_type = '$value' WHERE BoqSubcategoryID = $subcategory_id";
-        }
+             $getSubData_sql = "SELECT * FROM tblboqsubcategory WHERE BoqSubCategoryID = '$BoqSubCategoryID'";
 
-        if ($conn->query($sql)) {
-            // Fetch the updated data to return
-            $sql = "SELECT * FROM tblboqsubcategory WHERE BoqSubcategoryID = '$subcategory_id'";
+             $result = mysqli_query($conn, $getSubData_sql);
 
-            $result = mysqli_query($conn,$sql);
-            if ($result) {
-                $updatedSubcategory = $result->fetch_assoc(); // Use fetch_assoc for MySQLi
-                echo json_encode(['status' => 'success', 'updatedSubcategory' => $updatedSubcategory]);
+            if ($result && mysqli_num_rows($result) > 0) {
+                $row = mysqli_fetch_assoc($result);
+
+//                $unit = '';
+//
+//                if (isset($row['SubcategoryUnit'])) {
+//                    if ($row['SubcategoryUnit'] === 'm3' || $row['SubcategoryUnit'] === 'M3' || $row['SubcategoryUnit'] === 'm^3' || $row['SubcategoryUnit'] === 'M^3') {
+//                        $unit = "&#179";
+//                    } else {
+//                        $unit = $row['SubcategoryUnit'];
+//                    }
+//                }
+                $data['message2'] = "SubCategory fetch successfully.";
+                $data["success"] = true;
+                $data["SubcategoryName"]    = $row["SubcategoryName"] ? $row["SubcategoryName"] : "";
+                $data["SubcategoryUnit"]    = $row["SubcategoryUnit"] ? $row["SubcategoryUnit"] : "";
+                $data["SubcategoryQty"]     =  $row["SubcategoryQty"] === null ?  '' : $row["SubcategoryQty"];
+                $data["SubcategoryRate"]    = $row["SubcategoryRate"] ? $row["SubcategoryRate"] : "";
+                $cost = $row["SubcategoryQty"] && $row["SubcategoryRate"] ? $data["SubcategoryQty"] * $data["SubcategoryRate"] : 0.00;
+                $data["SubcategoryCost"]    = number_format($cost, 2);
+
+
+                $sub_Query = "SELECT SubcategoryQty, SubcategoryRate FROM tblboqsubcategory WHERE BoqCategoryID='$BoqCategoryID'";
+
+                $result = mysqli_query($conn, $sub_Query);
+
+                $totalCost = 0;
+                    if ($result && mysqli_num_rows($result) > 0) {
+                        while ($row = mysqli_fetch_assoc($result)) {
+                            $Cost = $row["SubcategoryQty"] * $row["SubcategoryRate"];
+                            $totalCost += $Cost;
+                        }
+                }
+
+                $data["TotalCosts"] = $totalCost;
+
+
+                 // Find GranTotal According to ProjectId
+//                $data["GrandTotalCost"] = 0;
             } else {
-                echo json_encode(['status' => 'error', 'message' => 'Failed to fetch updated subcategory']);
+                $data["success"] = false;
+                $data["message"] = "No subcategory found.";
+                echo json_encode($data);
             }
+          $data["GrandTotalCost"] = grandTotal($conn,$projectID);
+            echo json_encode($data);
         } else {
-            echo json_encode(['status' => 'error', 'message' => 'Failed to update subcategory']);
+            echo json_encode(['status' => 'error']);
         }
     }
-} catch (PDOException $e) {
+}
+catch (PDOException $e) {
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
 }
 
+
+
+
+
+
+//
+//if (mysqli_num_rows($checkSubcategory) > 0) {
+//
+//$SubSql = "SELECT SubcategoryQty, SubcategoryRate FROM tblboqsubcategory where BoqCategoryID='$BoqCategoryID'";
+//
+//$result = mysqli_query($conn, $SubSql);
+
 ?>
+
+
 
